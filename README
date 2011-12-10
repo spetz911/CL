@@ -1,0 +1,1 @@
+g++ HelloCL.cpp -lOpenCL -lSDKUtil -I'/opt/AMDAPP/samples/opencl/SDKUtil/include' -I'/opt/AMDAPP/include/' -L'/opt/AMDAPP/lib/x86_64/' -L'/opt/AMDAPP/TempSDKUtil/lib/x86_64/'
