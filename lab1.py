@@ -35,9 +35,9 @@ def cl_init(type = 'GPU'):
 
 block_size = 16
 
-def matrix_to_array(A, n = len(A), m = len(A[0])):
-	h = (len(A) // block_size + 1) * block_size
-	w = (len(A[0]) // block_size + 1) * block_size
+def matrix_to_array(A, n, m):
+	h = (n // block_size + 1) * block_size
+	w = (m // block_size + 1) * block_size
 	
 	# not fills array by zero
 	result = np.empty((h, w), dtype=np.float32)
@@ -60,14 +60,17 @@ def transponate(A):
 	queue = cl.CommandQueue(ctx)
 	for dev in ctx.devices:
 		assert dev.local_mem_size > 0
+		print dev
+		print 'local', dev.local_mem_size//1024, 'KB'
+		print 'global', dev.global_mem_size//1024//1024, 'MB'
 	
 	n = len(A)
 	m = len(A[0])
 	
 #	source = np.random.rand(size, size).astype(np.float32)
-	src_array = matrix_to_array(A)
+	src_array = matrix_to_array(A, n, m)
 	
-	print("src_array = ", src_array)
+#	print("src_array = ", src_array)
 
 
 	mf = cl.mem_flags
@@ -88,7 +91,8 @@ def transponate(A):
 
 	err = src_array.T - result
 	print("err = ", la.norm(err))
-	print("result = ", array_to_matrix(result))
+	print("source = ", A)
+	print("result = ", array_to_matrix(result, m, n))
 
 
 def check_transpose():
@@ -113,64 +117,6 @@ def check_transpose():
 
 
 
-
-def benchmark_transpose():
-	ctx = cl.create_some_context()
-
-	for dev in ctx.devices:
-		assert dev.local_mem_size > 0
-
-	queue = cl.CommandQueue(ctx, 
-			properties=cl.command_queue_properties.PROFILING_ENABLE)
-
-	mem_bandwidths = {}
-
-	method = TransposeWithLocal
-	
-	name = TransposeWithLocal.__name__.replace("Transpose", "")
-
-	mem_bandwidths[TransposeWithLocal] = meth_mem_bws = []
-
-	size = 1024
-
-	source = np.random.rand(size, size).astype(np.float32)
-
-	mf = cl.mem_flags
-	a_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=source)
-	a_t_buf = cl.Buffer(ctx, mf.WRITE_ONLY, size=source.nbytes)
-
-#	TransposeWithLocal(ctx)(queue, a_t_buf, a_buf, source.shape)
-
-	event = TransposeWithLocal(ctx)(queue, a_t_buf, a_buf, source.shape)
-
-	event.wait()
-
-	time = event.profile.end - event.profile.start
-
-	mem_bw = 2*source.nbytes*12/(time*1e-9)
-	print("benchmarking", name, size, mem_bw/1e9, "GB/s")
-	meth_mem_bws.append(mem_bw)
-
-	a_buf.release()
-	a_t_buf.release()
-	
-	methods = [TransposeWithLocal]
-
-
-	from matplotlib.pyplot import clf, plot, title, xlabel, ylabel, savefig, legend, grid
-	for i in range(len(methods)):
-		clf()
-		for j in range(i+1):
-			method = methods[j]
-			name = method.__name__.replace("Transpose", "")
-			plot(size, np.array(mem_bandwidths[method])/1e9, "o-", label=name)
-
-		xlabel("Matrix width/height $N$")
-		ylabel("Memory Bandwidth [GB/s]")
-		legend(loc="best")
-		grid()
-
-		savefig("transpose-benchmark-%d.pdf" % i)
 
 
 
@@ -206,7 +152,7 @@ def main():
 if __name__ == "__main__":
 #	check_transpose()
 #	benchmark_transpose()
-	transponate([[0,1],[2,3]])
+	transponate([[0,1,2],[3,4,5]])
 
 #=====================================================================
 

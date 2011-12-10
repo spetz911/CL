@@ -62,15 +62,15 @@ def main():
 	
 	queue = cl.CommandQueue(ctx)
 	
-	a = np.random.rand(50000).astype(np.float32)
-	b = np.random.rand(50000).astype(np.float32)
-	
+	a = np.random.rand(5000*16).astype(np.float32)
+	b = np.random.rand(5000*16).astype(np.float32)
+
 	mf = cl.mem_flags
 	a_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
 	b_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b)
 	dest_buf = cl.Buffer(ctx, mf.WRITE_ONLY, b.nbytes)
 
-	prg.sum(queue, a.shape, None, a_buf, b_buf, dest_buf)
+	prg.sum(queue, a.shape, (16,), a_buf, b_buf, dest_buf)
 
 	a_plus_b = np.empty_like(a)
 	cl.enqueue_copy(queue, a_plus_b, dest_buf)
@@ -82,4 +82,113 @@ def main():
 #=====================================================================
 if __name__ == "__main__":
 	main()
+
+
+def tmp1():
+		print("===============================================================")
+		print("Platform name:", platform.name)
+		print("Platform profile:", platform.profile)
+		print("Platform vendor:", platform.vendor)
+		print("Platform version:", platform.version)
+		print("---------------------------------------------------------------")
+		print("Device name:", device.name)
+		print("Device type:", cl.device_type.to_string(device.type))
+		print("Device memory: ", device.global_mem_size//1024//1024, 'MB')
+		print("Device max clock speed:", device.max_clock_frequency, 'MHz')
+		print("Device compute units:", device.max_compute_units)
+
+		# Simnple speed test
+		ctx = cl.Context([device])
+		queue = cl.CommandQueue(ctx, 
+				properties=cl.command_queue_properties.PROFILING_ENABLE)
+
+		mf = cl.mem_flags
+		a_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
+		b_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b)
+		dest_buf = cl.Buffer(ctx, mf.WRITE_ONLY, b.nbytes)
+
+		prg = cl.Program(ctx, """
+			__kernel void sum(__global const float *a,
+			__global const float *b, __global float *c)
+			{
+				        int loop;
+				        int gid = get_global_id(0);
+				        for(loop=0; loop<1000;loop++)
+				        {
+				                c[gid] = a[gid] + b[gid];
+				                c[gid] = c[gid] * (a[gid] + b[gid]);
+				                c[gid] = c[gid] * (a[gid] / 2.0);
+				        }
+				}
+				""").build()
+
+		exec_evt = prg.sum(queue, a.shape, None, a_buf, b_buf, dest_buf)
+		exec_evt.wait()
+		elapsed = 1e-9*(exec_evt.profile.end - exec_evt.profile.start)
+
+		print("Execution time of test: %g s" % elapsed)
+
+		c = numpy.empty_like(a)
+		cl.enqueue_read_buffer(queue, dest_buf, c).wait()
+
+
+def benchmark_transpose():
+	ctx = cl.create_some_context()
+
+	for dev in ctx.devices:
+		assert dev.local_mem_size > 0
+
+	queue = cl.CommandQueue(ctx, 
+			properties=cl.command_queue_properties.PROFILING_ENABLE)
+
+	mem_bandwidths = {}
+
+	method = TransposeWithLocal
+	
+	name = TransposeWithLocal.__name__.replace("Transpose", "")
+
+	mem_bandwidths[TransposeWithLocal] = meth_mem_bws = []
+
+	size = 1024
+
+	source = np.random.rand(size, size).astype(np.float32)
+
+	mf = cl.mem_flags
+	a_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=source)
+	a_t_buf = cl.Buffer(ctx, mf.WRITE_ONLY, size=source.nbytes)
+
+#	TransposeWithLocal(ctx)(queue, a_t_buf, a_buf, source.shape)
+
+	event = TransposeWithLocal(ctx)(queue, a_t_buf, a_buf, source.shape)
+
+	event.wait()
+
+	time = event.profile.end - event.profile.start
+
+	mem_bw = 2*source.nbytes*12/(time*1e-9)
+	print("benchmarking", name, size, mem_bw/1e9, "GB/s")
+	meth_mem_bws.append(mem_bw)
+
+	a_buf.release()
+	a_t_buf.release()
+	
+	methods = [TransposeWithLocal]
+
+
+	from matplotlib.pyplot import clf, plot, title, xlabel, ylabel, savefig, legend, grid
+	for i in range(len(methods)):
+		clf()
+		for j in range(i+1):
+			method = methods[j]
+			name = method.__name__.replace("Transpose", "")
+			plot(size, np.array(mem_bandwidths[method])/1e9, "o-", label=name)
+
+		xlabel("Matrix width/height $N$")
+		ylabel("Memory Bandwidth [GB/s]")
+		legend(loc="best")
+		grid()
+
+		savefig("transpose-benchmark-%d.pdf" % i)
+
+
 

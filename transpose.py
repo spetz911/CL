@@ -17,6 +17,9 @@ import numpy.linalg as la
 # Transposition of a matrix
 # originally for PyCUDA by Hendrik Riedmann <riedmann@dam.brown.edu>
 
+
+block_size = 16
+
 class NaiveTranspose:
 	def __init__(self, ctx):
 		self.kernel = cl.Program(ctx, """
@@ -51,8 +54,10 @@ class TransposeWithLocal:
 
 		__kernel __attribute__((reqd_work_group_size(BLOCK_SIZE, BLOCK_SIZE, 1)))
 		void transpose(
-		  __global float *a_t, __global float *a,
-		  unsigned a_width, unsigned a_height,
+		  __global float *a_t,
+		  __global float *a,
+		  unsigned a_width,
+		  unsigned a_height,
 		  __local float *a_local)
 		{
 		  int base_idx_a   =
