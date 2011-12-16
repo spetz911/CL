@@ -9,65 +9,13 @@
  *
  */
 
-/* Matrix multiplication: C = A * B.
- * Device code.
- */
+
 // Thread block size
 #define BLOCK_SIZE %(block_size)d
 
 #define AS(i, j) As[j + i * BLOCK_SIZE]
 #define BS(i, j) Bs[j + i * BLOCK_SIZE]
 
-///////////////////////////////////////////////////////////////////////////////
-//! Matrix multiplication on the device: C = A * B
-//! uiWA is A's width and uiWB is B's width
-////////////////////////////////////////////////////////////////////////////////
-__kernel void
-extract_row(__global float4* A,
-		    __global float4* B,
-		    int m, int i)
-{
-	int j = get_global_id(0);
-	m /= 4;
-
-	if (j >= m) {
-		return;
-	}
-
-	B[j] = fabs(A[i*m + j]);
-}
-
-__kernel void
-maximum(__global float4* A,
-        __global float* B,
-	    int n)
-{
-//	__local float4 A_local[BLOCK_SIZE];
-//	__local float B_local[BLOCK_SIZE];
-	
-
-    // Block index
-//    int bx = get_group_id(0);
-
-
-
-    // Thread index
-    int i = get_global_id(0);
-
-//	A_local[get_local_id(0)] = A[i];
-//   	barrier(CLK_LOCAL_MEM_FENCE);
-    
-//    get_global_id(1) * get_global_size(0) + get_global_id(0)
-	
-	if (i <= n/4 + 1) {
-		float4 z = A[i];
-		B[i] = max(max(fabs(z.x), fabs(z.y)), max(fabs(z.z), fabs(z.w)));
-	}
-	
-//	B[i] = B_local[get_local_id(0)];
-//   	barrier(CLK_LOCAL_MEM_FENCE);
-
-}
 
 __kernel void
 max_row(__global float4* A,
@@ -102,37 +50,6 @@ max_row(__global float4* A,
 	}
 }
 
-//	a_local[n] = A[i];
-//	i1_local[i] = i;
-	
-//	barrier(CLK_LOCAL_MEM_FENCE);
-
-//	while (n>1) {
-//	if (i/2 +1 >= n) return;
-//	}
-//	float4 z1 = a_local[i1_local[i]];
-//	float4 z2 = a_local[i1_local[i+1]];
-	
-//	if (z1 < z2) {
-		
-//	} else {
-		
-//	}
-	
-//	}
-
-//	A_local[get_local_id(0)] = A[i];
-//   	barrier(CLK_LOCAL_MEM_FENCE);
-    
-//    get_global_id(1) * get_global_size(0) + get_global_id(0)
-	
-//	if (i <= n/4 + 1) {
-//		float4 z = A[i];
-//		B[i] = max(max(fabs(z.x), fabs(z.y)), max(fabs(z.z), fabs(z.w)));
-//	}
-	
-//	B[i] = B_local[get_local_id(0)];
-//   	barrier(CLK_LOCAL_MEM_FENCE);
 
 __kernel void
 index_row(__global float* A,
@@ -142,8 +59,12 @@ index_row(__global float* A,
 {
 	float val = B[0];
     int j = get_global_id(0);
+
+	if (j >= m) {
+		return;
+	}
 	
-	if (fabs(A[m*i + j] - val) < 0.0001) {
+	if (fabs(A[m*i + j]) == val) {
 		RES[0] = j;
 	}
 }
@@ -219,8 +140,98 @@ one_step(__global float* A,
 
 
 
+/*********************************************
+ * Legacy code:
+ */
 
 
+
+__kernel void
+extract_row(__global float4* A,
+		    __global float4* B,
+		    int m, int i)
+{
+	int j = get_global_id(0);
+	m /= 4;
+
+	if (j >= m) {
+		return;
+	}
+
+	B[j] = fabs(A[i*m + j]);
+}
+
+__kernel void
+maximum(__global float4* A,
+        __global float* B,
+	    int n)
+{
+//	__local float4 A_local[BLOCK_SIZE];
+//	__local float B_local[BLOCK_SIZE];
+	
+
+    // Block index
+//    int bx = get_group_id(0);
+
+
+
+    // Thread index
+    int i = get_global_id(0);
+
+//	A_local[get_local_id(0)] = A[i];
+//   	barrier(CLK_LOCAL_MEM_FENCE);
+    
+//    get_global_id(1) * get_global_size(0) + get_global_id(0)
+	
+	if (i <= n/4 + 1) {
+		float4 z = A[i];
+		B[i] = max(max(fabs(z.x), fabs(z.y)), max(fabs(z.z), fabs(z.w)));
+	}
+	
+//	B[i] = B_local[get_local_id(0)];
+//   	barrier(CLK_LOCAL_MEM_FENCE);
+}
+
+__kernel void
+mat_vec_product(__global float4* A,
+                __global float4* B,
+	            int m, int n)
+{
+	__local float4 B_local[BLOCK_SIZE];
+//	__local float B_local[BLOCK_SIZE];
+	
+
+
+    // Thread index
+    int j_g = get_global_id(0);
+    int j_l = get_local_id(0);
+    
+    
+    if (j >= n) {
+    	return;
+    }
+    
+    B_local[j_l] = B[j_g];
+    
+    float4 z = 0.0f;
+    for (int i=0; i<m; ++i) {
+    	z += B_local[j_l]
+    }
+    
+
+//	A_local[get_local_id(0)] = A[i];
+//   	barrier(CLK_LOCAL_MEM_FENCE);
+    
+//    get_global_id(1) * get_global_size(0) + get_global_id(0)
+	
+	if (i <= n/4 + 1) {
+		float4 z = A[i];
+		B[i] = max(max(fabs(z.x), fabs(z.y)), max(fabs(z.z), fabs(z.w)));
+	}
+	
+//	B[i] = B_local[get_local_id(0)];
+//   	barrier(CLK_LOCAL_MEM_FENCE);
+}
 
 
 

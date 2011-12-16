@@ -126,17 +126,31 @@ def i_max(d_a_buf, m, row):
 
 def max_row(d_a_buf, m, row):
 	m_buf = np.empty(m).astype(np.float32)
+	res_buf = np.empty(1).astype(np.uint32)
 
 	mf = cl.mem_flags
 	d_m_buf = cl.Buffer(ctx, mf.READ_WRITE, size=m_buf.nbytes)
+	d_r_buf = cl.Buffer(ctx, mf.WRITE_ONLY, size=res_buf.nbytes)
+	
 	event = prg.max_row(queue, m_buf.shape, (block_size, ),
-	                              d_a_buf, d_m_buf, np.uint32(m), np.uint32(row)).wait()
+	                    d_a_buf, d_m_buf, np.uint32(m), np.uint32(row)).wait()
 	cl.enqueue_copy(queue, m_buf, d_m_buf)
+
+	prg.index_row(queue, m_buf.shape, (block_size, ),
+	              d_a_buf, d_m_buf, d_r_buf, np.uint32(m), np.uint32(row)).wait()
+	
+	cl.enqueue_copy(queue, res_buf, d_r_buf)
 	
 	print("max_row =>")
 	print(m_buf)
+
+	print("res_row =>")
+	print(res_buf)
+	return res_buf[0]
+		
+#	arr = [x for x in m_buf]
+
 	
-	arr = [x for x in m_buf]
 
 #	d_m_buf.release()
 	
