@@ -4,11 +4,6 @@ Copyright (c) 2009-2010 Advanced Micro Devices, Inc.  All rights reserved.
 
 ============================================================ */
 
-#ifdef KHR_DP_EXTENSION
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-#else
-#pragma OPENCL EXTENSION cl_amd_fp64 : enable
-#endif
 
 #define VECTOR_SIZE 4
 
@@ -19,11 +14,11 @@ Copyright (c) 2009-2010 Advanced Micro Devices, Inc.  All rights reserved.
     output matrix U is generated in the inplacematrix itself
     output matrix L is generated in the LMatrix*/
 
-__kernel void kernelLUDecompose(__global double4* LMatrix,
-                           __global double4* inplaceMatrix,
-                            int d,
-                            __local double* ratio)
+__kernel void kernelLUDecompose(__global float4* LMatrix,
+                                __global float4* inplaceMatrix,
+                                int d)
 {	
+	__local float ratio[VECTOR_SIZE*VECTOR_SIZE];
     //get the global id of the work item
     int y = get_global_id(1);
     int x = get_global_id(0);
@@ -48,7 +43,7 @@ __kernel void kernelLUDecompose(__global double4* LMatrix,
     //check which workitems need to be included for computation
     if(y >= d + 1 && ((x + 1) * VECTOR_SIZE) > d)
     {
-        double4 result;
+        float4 result;
         
         //the vectorized part begins here
         {
@@ -86,8 +81,8 @@ __kernel void kernelLUDecompose(__global double4* LMatrix,
     */
 
 
-__kernel void kernelLUCombine(__global double* LMatrix,
-                         __global double* inplaceMatrix)
+__kernel void kernelLUCombine(__global float* LMatrix,
+                         __global float* inplaceMatrix)
 {
     int i = get_global_id(1);
     int j = get_global_id(0);

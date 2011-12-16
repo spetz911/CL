@@ -18,6 +18,11 @@ from time import time
 
 # example provided by Eilif Muller
 
+queue = None
+prg = None
+ctx = None
+
+
 ## works with NxN matrix when N > block_size
 
 def cl_init(type = 'GPU'):
@@ -35,7 +40,10 @@ def cl_init(type = 'GPU'):
 	queue = cl.CommandQueue(ctx, properties=cl.command_queue_properties.PROFILING_ENABLE)
 	return ctx, queue
 
-block_size = 4
+block_size = 2
+
+def calc_groupsize(n):
+	return ((n-1) // block_size + 1) * block_size
 
 
 def test_mul(M1, M2):
@@ -81,28 +89,84 @@ def array_to_matrix(Arr, n, m):
 			A[i][j] = Arr[i][j]
 	return A
 
+def LU_one_step(d_a_buf, sizes, m, k):
+	gs = tuple(calc_groupsize(x) for x in sizes)
+	event = prg.one_step(queue, gs, (block_size, block_size),
+	                              d_a_buf, np.uint32(m), np.uint32(k))
+	event.wait()
+
+def swap_row(d_a_buf, m, i1, i2):
+	event = prg.swap_row(queue, (m, ), (block_size, ),
+	                              d_a_buf, np.uint32(m), np.uint32(i1), np.uint32(i2))
+	event.wait()
+
+def swap_coll(d_a_buf, m, i1, i2):
+	event = prg.swap_coll(queue, (m, ), (block_size, ),
+	                              d_a_buf, np.uint32(m), np.uint32(i1), np.uint32(i2))
+	event.wait()
+
+def i_max(d_a_buf, m, row):
+	m_buf = np.empty(m).astype(np.float32)
+
+	mf = cl.mem_flags
+	d_m_buf = cl.Buffer(ctx, mf.WRITE_ONLY, size=m_buf.nbytes)
+	event = prg.extract_row(queue, m_buf.shape, (block_size, ),
+	                              d_a_buf, d_m_buf, np.uint32(m), np.uint32(row)).wait()
+	cl.enqueue_copy(queue, m_buf, d_m_buf)
+	
+	print("m_buf =>")
+	print(m_buf)
+	
+	arr = [x for x in m_buf]
+	
+	#maybe auto release
+	d_m_buf.release()
+	
+	return arr.index(max(arr))
+
+def max_row(d_a_buf, m, row):
+	m_buf = np.empty(m).astype(np.float32)
+
+	mf = cl.mem_flags
+	d_m_buf = cl.Buffer(ctx, mf.READ_WRITE, size=m_buf.nbytes)
+	event = prg.max_row(queue, m_buf.shape, (block_size, ),
+	                              d_a_buf, d_m_buf, np.uint32(m), np.uint32(row)).wait()
+	cl.enqueue_copy(queue, m_buf, d_m_buf)
+	
+	print("max_row =>")
+	print(m_buf)
+	
+	arr = [x for x in m_buf]
+
+#	d_m_buf.release()
+	
+#	return arr.index(max(arr))
 
 
 def LUP(A):
 ## check sizes here!!!
+	global ctx
+	global queue
+	global prg
+
 	ctx, queue = cl_init()
+	kernel_params = {"block_size": block_size}
+
+	prg = cl.Program(ctx, open("my_LUP.cl").read() % kernel_params, ).build()
+#	prg = cl.Program(ctx, open("my_LUP.cl").read() ).build()
+
 	n = len(A)
 	m = len(A[0])
 	
-	a_buf = matrix_to_array(A, n, m)
-	L_buf = np.empty(a_buf.shape).astype(np.float32)
+	a_buf = np.array(A).astype(np.float32)
+	L_buf = np.empty_like(a_buf).astype(np.float32)
 #	c_buf = np.empty(a_buf.shape).astype(np.float32)
 	
-	print("a_buf")
+	print("a_buf input")
 	print(a_buf)
 	
 	print(L_buf.shape)
 	
-	kernel_params = {"block_size": block_size}
-
-#	prg = cl.Program(ctx, open("LU.cl").read() % kernel_params, ).build()
-	prg = cl.Program(ctx, open("LU.cl").read() ).build()
-
 	mf = cl.mem_flags
 	d_a_buf = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=a_buf)
 	d_L_buf = cl.Buffer(ctx, mf.WRITE_ONLY, size=L_buf.nbytes)
@@ -110,28 +174,38 @@ def LUP(A):
 	# actual benchmark ------------------------------------------------------------
 	t1 = time()
 	
-	event = prg.kernelLUDecompose(queue, L_buf.shape, (block_size, block_size),
-	                      d_L_buf, d_a_buf, np.uint32(4))
-	#                      np.uint32(c_buf.shape[0]), np.uint32(c_buf.shape[1]))
-                        #   np.uint32(w1), np.uint32(w2))
+	LU_one_step(d_a_buf, a_buf.shape, n, 0)
+	
+#	LU_one_step(d_a_buf, a_buf.shape, n, 1)
 
-	event.wait()
+	
+#	num = i_max(d_a_buf, m, 2)
+
+#	print("imax: ", num)
+
+#	swap_row(d_a_buf, m, 1, 2)
+
+	max_row(d_a_buf, m, 1)
+
 	gpu_time = (time() - t1)
 
-	cl.enqueue_copy(queue, L_buf, d_L_buf)
+#	cl.enqueue_copy(queue, L_buf, d_L_buf)
 	cl.enqueue_copy(queue, a_buf, d_a_buf)
 	
-	print("L_buf")
-	print(L_buf)
+#	print("L_buf")
+#	print(L_buf)
 	print("a_buf")
 	print(a_buf)
+
+	return
+		
 	
-	res = array_to_matrix(L_buf, n, m)
+#	res = array_to_matrix(L_buf, n, m)
 	
-	print("result:")
-	print(res)
-	print("origin:")
-	print(np.matrix(A))
+#	print("result:")
+#	print(res)
+#	print("origin:")
+#	print(np.matrix(A))
 
 
 
@@ -169,7 +243,7 @@ if __name__ == "__main__":
 #	check_transpose()
 #	benchmark_transpose()
 
-	LUP( [[1,2,3,4],[3,4,3,4],[5,6,3,4],[5,6,3,7]] )
+	LUP( [[1,2,3,4],[3,4,3,4],[5,6,3,9],[5,6,3,7]] )
 #	multiply( [[6,5,3],[7,4,2],[8,3,1]], [[1,2,4,5],[9,8,6,5],[1,8,6,5]] )
 
 #=====================================================================
