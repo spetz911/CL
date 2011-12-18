@@ -20,11 +20,25 @@ def cl_init(type = 'GPU'):
 		my_type = cl.device_type.CPU
 	
 	try:
-		plt = cl.get_platforms()[0]
-		devices = plt.get_devices(device_type=my_type)
+		platform = cl.get_platforms()[0]
+		devices = platform.get_devices(device_type=my_type)
 		ctx = cl.Context(devices = devices)
 	except:
 		ctx = cl.create_some_context(interactive=True)
+	
+	device = devices[0]
+	print("===============================================================")
+	print("Platform name: " + platform.name)
+	print("Platform vendor: " + platform.vendor)
+	print("Platform version: " + platform.version)
+	print("---------------------------------------------------------------")
+	print("Device name: " + device.name)
+	print("Device type: " + cl.device_type.to_string(device.type))
+	print("Local memory: " + str(device.local_mem_size//1024) + ' KB')
+	print("Device memory: " + str(device.global_mem_size//1024//1024) + ' MB')
+	print("Device max clock speed:" + str(device.max_clock_frequency) + ' MHz')
+	print("Device compute units:" + str(device.max_compute_units))
+	
 	return ctx
 
 code = """
@@ -57,26 +71,46 @@ def alter_sum():
 #=====================================================================
 def main():
 	global prg, code
+	
+	# initialize_CL
 	ctx = cl_init()
+	cp = cl.command_queue_properties
+	queue = cl.CommandQueue(ctx, properties=cp.PROFILING_ENABLE)
 	prg = cl.Program(ctx, code).build()
-	
-	queue = cl.CommandQueue(ctx)
-	
-	a = np.random.rand(5000*16).astype(np.float32)
-	b = np.random.rand(5000*16).astype(np.float32)
 
+
+	# generate long random vectors
+	size = 100500*16
+	a = np.random.rand(size).astype(np.float32)
+	b = np.random.rand(size).astype(np.float32)
+	a_plus_b = np.empty_like(a)
+	
+	# create buffers
 	mf = cl.mem_flags
 	a_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
 	b_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b)
 	dest_buf = cl.Buffer(ctx, mf.WRITE_ONLY, b.nbytes)
 
-	prg.sum(queue, a.shape, (16,), a_buf, b_buf, dest_buf)
+	print("...Calcuate 16*100500 elem's vector")
+	
+	# call OpenCL kernel
+	exec_evt = prg.sum(queue, a.shape, (16,), a_buf, b_buf, dest_buf).wait()
 
-	a_plus_b = np.empty_like(a)
+	elapsed = 1e-9*(exec_evt.profile.end - exec_evt.profile.start)
+	print("Execution time of test: %g second" % elapsed)
+
 	cl.enqueue_copy(queue, a_plus_b, dest_buf)
 
-	print(la.norm(a_plus_b - (a+b)), la.norm(a_plus_b))
-	print(a_plus_b[:10])
+	# compare result with native numpy
+	print('error = ' + str(la.norm(a_plus_b - (a+b))))
+	
+	# part of vectors and their sum:
+	print('Testing:')
+	print(a[:3])
+	print('+')
+	print(b[:3])
+	print('=')
+	print(a_plus_b[:3])
 
 
 #=====================================================================

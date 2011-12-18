@@ -206,7 +206,9 @@ mat_vec_product(__global float4* A,
     int j_g = get_global_id(0);
     int j_l = get_local_id(0);
     
-    
+	int j= 0;
+	int i = 0;
+	
     if (j >= n) {
     	return;
     }
@@ -215,7 +217,7 @@ mat_vec_product(__global float4* A,
     
     float4 z = 0.0f;
     for (int i=0; i<m; ++i) {
-    	z += B_local[j_l]
+    	z += B_local[j_l];
     }
     
 
