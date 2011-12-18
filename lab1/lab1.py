@@ -43,9 +43,18 @@ def cl_init(type = 'GPU'):
 
 code = """
 __kernel void
-sum(__global const float *a,
-    __global const float *b,
-    __global float *c)
+sum(__global const float4 *a,
+    __global const float4 *b,
+    __global float4 *c)
+{
+  int gid = get_global_id(0);
+  c[gid] = a[gid] + b[gid];
+}
+
+__kernel void
+sum4(__global const float4 *a,
+    __global const float4 *b,
+    __global float4 *c)
 {
   int gid = get_global_id(0);
   c[gid] = a[gid] + b[gid];
@@ -97,7 +106,20 @@ def main():
 	exec_evt = prg.sum(queue, a.shape, (16,), a_buf, b_buf, dest_buf).wait()
 
 	elapsed = 1e-9*(exec_evt.profile.end - exec_evt.profile.start)
-	print("Execution time of test: %g second" % elapsed)
+	print("Execution time of test1: %g second" % elapsed)
+	cl.enqueue_copy(queue, a_plus_b, dest_buf)
+
+	a_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=a)
+	b_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=b)
+	dest_buf = cl.Buffer(ctx, mf.WRITE_ONLY, b.nbytes)
+
+	print("...Start vectorized kernel")
+
+	# call OpenCL kernel
+	exec_evt = prg.sum4(queue, (a.shape[0]//4,), (16,), a_buf, b_buf, dest_buf).wait()
+
+	elapsed = 1e-9*(exec_evt.profile.end - exec_evt.profile.start)
+	print("Execution time of test2: %g second" % elapsed)
 
 	cl.enqueue_copy(queue, a_plus_b, dest_buf)
 
