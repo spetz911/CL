@@ -160,12 +160,36 @@ def max_col(d_a_buf, m, col):
 #	return arr.index(max(arr))
 
 
-
+def solve(L, U, p ,b):
+	n = len(b)
+	
+	# forward Gauss
+	z = [0]*n
+#	z[0] = b[0]
+	
+	for i in range(1,n):
+		z[i] = b[i]
+		for j in range(i):
+			z[i] -= L[i][j]*z[j]
+	
+	x = [0]*n
+#	x[n-1] = z[n-1]
+	
+	for i in range(n-1, -1, -1):
+		x[i] = z[i]
+		for j in range(i+1,n):
+			x[i] -= self.U[i][j]*x[j]
+		x[i] /= self.U[i][i]
+	
+	
+	
+	
+	return x
+	
 
 
 
 def LUP(A):
-## check sizes here!!!
 	global ctx
 	global queue
 	global prg
@@ -267,7 +291,7 @@ def LUP(A):
 	if rem:
 		m -= block_size - rem
 	
-	res = [[ round(a+l, 5) for (a,l) in zip(row_a[:m], row_l[:m])]
+	res = [[ round(a+l, 2) for (a,l) in zip(row_a[:m], row_l[:m])]
 	              for (row_a, row_l) in zip(a_buf, L_buf)]
 	
 #	res = [[0.0]*m for i in range(n)]
@@ -327,6 +351,7 @@ if __name__ == "__main__":
 #	benchmark_transpose()
 
 #	res = LUP( [[1,2,3,4],[3,4,3,4],[5,6,8,9],[5,6,3,7]] )
+
 	
 	res = LUP([
 			[2, 7, -8, 6],

@@ -135,7 +135,7 @@ class Matrix:
 			
 			for i in range(k+1, n): #col number
 				koef = A[i][k]/A[k][k]
-				A.M[i] = [(xx-xo*koef)for (xx,xo) in zip(A.M[i],A.M[k])]
+				A.M[i] = [(xx-xo*koef) for (xx,xo) in zip(A.M[i],A.M[k])]
 				L[i][k] = koef
 #			if k==1: break
 
@@ -148,22 +148,17 @@ class Matrix:
 	def solve(self,b):
 		n = len(b)
 		z = [0]*n
-		z[0] = b[0]
-		for i in range(1,n):
+		for i in range(n):
 			z[i] = b[i]
 			for j in range(i):
 				z[i] -= self.L[i][j]*z[j]
-		
 		x = [0]*n
-		x[n-1] = z[n-1]
 		i = n-1
-		while i > -1 :
+		for i in range(n-1,-1,-1):
 			x[i] = z[i]
 			for j in range(i+1,n):
 				x[i] -= self.U[i][j]*x[j]
 			x[i] /= self.U[i][i]
-			i-=1
-		
 		return x
 	
 	def inverse(self):
@@ -184,7 +179,12 @@ class Matrix:
 	
 def my_test():
 	m = Matrix(m=4, n=4)
-	m.M = [[1,2,3,4],[3,4,3,4],[5,6,8,9],[5,6,3,7]]
+	m.M = [
+		[2, 7, -8, 6],
+		[4, 4, 0, -7],
+		[-1, -3, 6, 3],
+		[9, -7, -2, -8]
+	      ]
 	print ("Input matrix:")
 	m.pr()
 	m.build_LU()
@@ -196,13 +196,10 @@ def my_test():
 	(m.L*m.U).pr()
 	
 	# next test
-	m.M = [
-		[2, 7, -8, 6],
-		[4, 4, 0, -7],
-		[-1, -3, 6, 3],
-		[9, -7, -2, -8]
-	      ]
-
+	m.M = [[1,2,3,4],[3,4,3,4],[5,6,8,9],[5,6,3,7]]
+	
+	
+	
 		
 def main():
 	m = Matrix("lab1_1.in")
@@ -236,4 +233,4 @@ def main():
 
 
 if (__name__ == "__main__"):
-	my_test()
+	main()

@@ -18,21 +18,18 @@
 
 __kernel void
 max_col(__global float* A,
-		__global float* B,
-		int m, int col, int row)
+	__global float* B,
+	int m, int col, int row)
 {
 	__local float a_local[BLOCK_SIZE];
 	const int k = BLOCK_SIZE;
-//	m /= 4;
-	// Thread index
+
 	int i_g = get_global_id(0);
 	int i_l = get_local_id(0);
 	if (i_g >= m - row) {
 		return;
 	}
-	
-//	float4 z = A[row*m + i_g];
-	
+
 	B[i_g + 0] = fabs(A[m*(i_g+row+0) + col]);
 	B[i_g + 1] = fabs(A[m*(i_g+row+1) + col]);
 	B[i_g + 2] = fabs(A[m*(i_g+row+2) + col]);
@@ -60,11 +57,8 @@ index_col(__global float* A,
 	float val = B[0];
 	int j = get_global_id(0) + row;
 
-	if (j >= m) {
-		return;
-	}
+	if (j >= m) return;
 	
-//	if (fabs(A[m*i + j]) == val) {
 	if (fabs(A[m*j + i]) == val) {
 		RES[0] = j;
 	}
@@ -74,18 +68,11 @@ __kernel void
 swap_row(__global float* A,
          int n, int i1, int i2)
 {
-//	__local float4 A_local[BLOCK_SIZE];
-//	__local float B_local[BLOCK_SIZE];
+	int j = get_global_id(0);
+	if (j >= n) return;
 
-    // Thread index
-    int j = get_global_id(0);
-
-	if (j >= n) {
-		return;
-	}
-	
-    float z1 = A[n*i1 + j];
-    float z2 = A[n*i2 + j];
+	float z1 = A[n*i1 + j];
+	float z2 = A[n*i2 + j];
 
 	A[n*i2 + j] = z1;
 	A[n*i1 + j] = z2;
@@ -95,18 +82,11 @@ __kernel void
 swap_col(__global float* A,
          int n, int j1, int j2)
 {
-//	__local float4 A_local[BLOCK_SIZE];
-//	__local float B_local[BLOCK_SIZE];
-
-    // Thread index
-    int i = get_global_id(0);
-
-	if (i >= n) {
-		return;
-	}
+	int i = get_global_id(0);
+	if (i >= n) return;
 	
-    float z1 = A[n*i + j1];
-    float z2 = A[n*i + j2];
+	float z1 = A[n*i + j1];
+	float z2 = A[n*i + j2];
 
 	A[n*i + j2] = z1;
 	A[n*i + j1] = z2;
@@ -118,31 +98,17 @@ one_step(__global float* A,
          __global float* L,
          int n, int k)
 {
-//	__local float4 A_local[BLOCK_SIZE];
-//	__local float B_local[BLOCK_SIZE];
-
-    float z = A[n*k + k];
-
-    // Thread index
 	int i = get_global_id(1) + k+1;
-    int j = get_global_id(0) + k;
-	
-	// exit 2d condition like for(;;)
-	if (j >= n || i >= n) {
-		return;
-	}
-	
-	float koef = A[n*i + k] / z;
+	int j = get_global_id(0) + k;
 
-//	if (get_global_id(0) == 0)
+	// exit 2d condition like for(;;)
+	if (j >= n || i >= n) return;
+		
+	float koef = A[n*i + k] / A[n*k + k];
+
 	L[n*i + k] = koef;
-	
 	A[i*n + j] = A[i*n + j] - koef * A[n*k + j];
 }
-
-
-
-
 
 
 
